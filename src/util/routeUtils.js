@@ -51,11 +51,10 @@ const createRoute = async (routeData) => {
 };
 
 const calculateDistance = (stop1, stop2) => {
-  // Implement distance calculation logic (e.g., Haversine formula)
   return Math.sqrt(Math.pow(stop2.latitude - stop1.latitude, 2) + Math.pow(stop2.longitude - stop1.longitude, 2));
 };
 
-const findBestRoute = async (srcStopId, destStopId, criteria = 'time') => {
+const findBestRouteByTime = async (srcStopId, destStopId) => {
   const stops = await Stop.find().populate('neighbors.stop_id');
   const stopMap = new Map(stops.map(stop => [stop._id.toString(), stop]));
 
@@ -94,6 +93,45 @@ const findBestRoute = async (srcStopId, destStopId, criteria = 'time') => {
   return route;
 };
 
+const findBestRouteByExchanges = async (srcStopId, destStopId) => {
+  const stops = await Stop.find().populate('neighbors.stop_id');
+  const stopMap = new Map(stops.map(stop => [stop._id.toString(), stop]));
+
+  const exchanges = new Map();
+  const previousStops = new Map();
+  const unvisitedStops = new Set(stopMap.keys());
+
+  exchanges.set(srcStopId, 0);
+
+  while (unvisitedStops.size > 0) {
+    const currentStopId = getClosestStopByExchanges(unvisitedStops, exchanges);
+    if (currentStopId === destStopId) break;
+
+    const currentStop = stopMap.get(currentStopId);
+    for (const neighbor of currentStop.neighbors) {
+      const neighborStopId = neighbor.stop_id.toString();
+      if (!unvisitedStops.has(neighborStopId)) continue;
+
+      const newExchanges = exchanges.get(currentStopId) + (currentStop.routes.includes(neighbor.route_id) ? 0 : 1);
+      if (newExchanges < (exchanges.get(neighborStopId) || Infinity)) {
+        exchanges.set(neighborStopId, newExchanges);
+        previousStops.set(neighborStopId, currentStopId);
+      }
+    }
+
+    unvisitedStops.delete(currentStopId);
+  }
+
+  const route = [];
+  let currentStopId = destStopId;
+  while (currentStopId) {
+    route.unshift(currentStopId);
+    currentStopId = previousStops.get(currentStopId);
+  }
+
+  return route;
+};
+
 const getClosestStop = (unvisitedStops, distances) => {
   let closestStop = null;
   let minDistance = Infinity;
@@ -107,9 +145,20 @@ const getClosestStop = (unvisitedStops, distances) => {
   return closestStop;
 };
 
+const getClosestStopByExchanges = (unvisitedStops, exchanges) => {
+  let closestStop = null;
+  let minExchanges = Infinity;
+  for (const stopId of unvisitedStops) {
+    const exchange = exchanges.get(stopId) || Infinity;
+    if (exchange < minExchanges) {
+      closestStop = stopId;
+      minExchanges = exchange;
+    }
+  }
+  return closestStop;
+};
+
 const suggestStops = async (currentLocation, preferredDepartureTime, historicalData) => {
-  // Implement logic to suggest closest stops based on current location, preferred departure time, and historical data
-  // This is a placeholder implementation
   const stops = await Stop.find();
   const closestStops = stops.map(stop => ({
     stop,
@@ -120,8 +169,12 @@ const suggestStops = async (currentLocation, preferredDepartureTime, historicalD
 };
 
 const getOptimalRoute = async (srcStopId, destStopId, criteria = 'time') => {
-  // Implement logic to get the optimal route based on criteria (time, fare, occupancy)
-  const route = await findBestRoute(srcStopId, destStopId, criteria);
+  let route;
+  if (criteria === 'time') {
+    route = await findBestRouteByTime(srcStopId, destStopId);
+  } else if (criteria === 'exchanges') {
+    route = await findBestRouteByExchanges(srcStopId, destStopId);
+  }
   return route;
 };
 
@@ -139,7 +192,8 @@ const handleTransfer = async (userId, initialRouteId, transferStopId, finalRoute
 
 module.exports = {
   createRoute,
-  findBestRoute,
+  findBestRouteByTime,
+  findBestRouteByExchanges,
   suggestStops,
   getOptimalRoute,
   handleTransfer
