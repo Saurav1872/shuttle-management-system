@@ -24,6 +24,7 @@ router.post('/deductPoints', auth, walletController.deductPoints);
 // Recharge and deduction on booking
 router.post('/recharge', auth, walletController.rechargeWallet);
 router.post('/confirmBooking', auth, walletController.confirmBooking);
-
+// Expense Tracking & Wallet Statements
+router.get('/expense-report', auth, walletController.getExpenseReport);
 
 module.exports = router;

@@ -31,14 +31,14 @@ module.exports = {
         try {
             const {userId, amount, reason} = req.body;
             
-            if(!userID || !amount || !reason) {
-                return res.status(400).json({message: 'incomplete data provided'});
+            if(!userId || !amount || !reason) {
+                return res.status(400).json({message: 'Incomplete data provided'});
             }
     
             if(amount <= 0) {
                 return res.status(400).json({message: 'Invalid amount'});
             }
-    
+            console.log(req.user);
             const user = await User.findById(userId);
             if(!user) {
                 return res.status(400).json({message: 'User not found'});
@@ -47,9 +47,10 @@ module.exports = {
             // Update user's wallet balance
             user.walletBalance += amount;
             await user.save();
-    
+            
+            
             // Create Wallet Transaction record
-            const transaction = new WalletTransaction({
+            const transaction = new Transaction({
                 user_id: userId,
                 transaction_type: 'credit',
                 amount,
@@ -81,17 +82,18 @@ module.exports = {
     // Deduct points from wallet (for booking)
     deductPoints: async (req, res) => {
         try {
-            const {amount, description} = req.body;
+            const {id, amount, description} = req.body;
+            console.log(req.body);
             
             if(!amount || !description) {
-                return res.status(400).json({message: 'incomplete data provided'});
+                return res.status(400).json({message: 'Incomplete data provided'});
             }
     
             if(amount <= 0) {
                 return res.status(400).json({message: 'Invalid amount'});
             }
-    
-            const user = await User.findById(req.user.id);
+            
+            const user = await User.findById(id);
             if(!user) {
                 return res.status(400).json({message: 'User not found'});
             }
@@ -105,7 +107,7 @@ module.exports = {
             await user.save();
     
             // Create Wallet Transaction record
-            const transaction = new WalletTransaction({
+            const transaction = new Transaction({
                 user_id: req.user.id,
                 transaction_type: 'debit',
                 amount,
@@ -234,6 +236,27 @@ module.exports = {
             res.json({ message: 'Booking confirmed', newBalance: user.walletBalance });
         } catch (err) {
             console.error(err.message);
+            res.status(500).json({ message: 'Server error' });
+        }
+    },
+
+
+    getExpenseReport: async (req, res) => {
+        try {
+            const { startDate, endDate } = req.query;
+            const bookings = await Booking.find({
+                user_id: req.user.id,
+                booking_time: { $gte: new Date(startDate), $lte: new Date(endDate) }
+            });
+
+            const totalPointsUsed = bookings.reduce((total, booking) => total + booking.points_deducted, 0);
+
+            res.json({
+                totalPointsUsed,
+                bookings
+            });
+        } catch (error) {
+            console.error(error.message);
             res.status(500).json({ message: 'Server error' });
         }
     }

@@ -4,7 +4,8 @@ const cors = require('cors');
 require('dotenv').config();
 
 const authRoutes = require('./routes/auth');
-
+const routeRoutes = require('./routes/routes');
+const walletRoutes = require('./routes/wallet');
 const app = express();
 
 // Middleware
@@ -25,7 +26,8 @@ try {
 
 // Routes
 app.use('/api/auth', authRoutes);
-
+app.use('/api/routes', routeRoutes);
+app.use('/api/wallet', walletRoutes);
 
 // Error Handling Middleware
 app.use((err, req, res, next) => {
@@ -35,6 +37,5 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`)
-}
-);
+    console.log(`Server running on port ${PORT}: http://localhost:${PORT}`);
+});
